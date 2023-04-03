@@ -1,9 +1,7 @@
 const worker = new Worker(new URL('graphics_main.js', import.meta.url), {name: 'webgl_graphics_worker'});
 const Graphics = { };
 
-const sendMessage = function(message_type, message_content, ...message_transferables) {
-    if(message_transferables.length == 0) message_transferables = [];
-    else message_transferables = [].concat.apply([], message_transferables);
+const sendMessage = function(message_type, message_content, message_transferables) {
     worker.postMessage({type: message_type, content: message_content}, message_transferables)
 }
 
@@ -12,12 +10,17 @@ const sendPromisedMessage = function(message_type, message_content, message_tran
         //create a new message listener to key on messages that match message_type
         function promiseMessageListener(message) {
             if(message.data.type != message_type) return;
-            worker.removeEventListener(promiseMessageListener); //unbind listener
+            worker.removeEventListener('message', promiseMessageListener); //unbind listener
             resolve(message.data); 
         }
         worker.addEventListener('message', promiseMessageListener);
-        GraphicsWorker.sendMessage(message_type, message_content, message_transferables);
+        sendMessage(message_type, message_content, message_transferables);
     });
+}
+
+Graphics.init = async function(canvas, base_uri, shader_uri) {
+    const offscreen = canvas.transferControlToOffscreen( );
+    await sendPromisedMessage('init', {canvas: offscreen, base_uri: base_uri, shader_uri: shader_uri}, [offscreen]);
 }
 
 /**
@@ -27,7 +30,7 @@ const sendPromisedMessage = function(message_type, message_content, message_tran
  * @param {Float32Array} color
  */
 Graphics.fill = function(color) {
-    return sendMessage('fill', color, [color]);
+    return sendMessage('fill', color);
 }
 
 /**
